@@ -207,18 +207,18 @@ include_directories(
 # catkin_add_nosetests(test)
 
 #talker
-add_executable(talk_node src/talk.cpp)
-target_link_libraries (talk_node ${catkin_LIBRARIES})
+#add_executable(talk_node src/talk.cpp)
+#target_link_libraries (talk_node ${catkin_LIBRARIES})
 #add_dependencies(talk gaitech_doc_generate_message_cpp)
 
 #listener
-add_executable(listen_node src/listen.cpp)
-target_link_libraries (listen_node ${catkin_LIBRARIES})
+#add_executable(listen_node src/listen.cpp)
+#target_link_libraries (listen_node ${catkin_LIBRARIES})
 
 #motor_driver
 add_executable(motor_driver_node src/motor_driver.cpp)
 target_link_libraries (motor_driver_node ${catkin_LIBRARIES})
 
 #serial_example_node
-add_executable(serial_example_node src/serial_example_node.cpp)
-target_link_libraries(serial_example_node ${catkin_LIBRARIES})
+#add_executable(serial_example_node src/serial_example_node.cpp)
+#target_link_libraries(serial_example_node ${catkin_LIBRARIES})
