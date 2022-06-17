@@ -169,29 +169,39 @@ long long int right_encoder = 0;
 // Topic messages callback
 void twistCallback(const geometry_msgs::Twist& msg)
 {
-    double linear_velocity;
-    double angular_velocity;
+    double leftmotor;
+    double rightmotor;
     char velMsg[256];
 
 
-    linear_velocity = msg.linear.x;
-    angular_velocity = msg.angular.z;
+    // linear_velocity = msg.linear.x;
+    // angular_velocity = msg.angular.z;
 
-    linear_velocity = boost::algorithm::clamp(round(linear_velocity*127 + 127), 0, 255);
-    angular_velocity = boost::algorithm::clamp(round(angular_velocity*127 + 127), 0, 255);
+    if((abs(msg.linear.x) <= 1.5) & (abs(msg.angular.z) <= 0.4))
+    {
+        rightmotor = msg.linear.x + (0.5 * msg.angular.z);
+        leftmotor = msg.linear.x - (0.5 * msg.angular.z);
 
-    int l_vel = linear_velocity;
-    int a_vel = angular_velocity;
+        rightmotor = boost::algorithm::clamp(round(rightmotor*127 + 127), 0, 254);
+        leftmotor = boost::algorithm::clamp(round(leftmotor*127 + 127), 0, 254);
 
-    sprintf(velMsg, "jx%dz%dy", l_vel, a_vel);
-    ser.write("start");
-    ser.write("start");
-    ser.write(velMsg);
+        int r_motor = rightmotor;
+        int l_motor = leftmotor;
 
-    // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", linear_velocity, angular_velocity);
-    ROS_INFO("Linear velocity %d    Angualar velocity %d", l_vel, a_vel);
+        // int checksum = (253 - (leftmotor + rightmotor)) % 255
+        // ser.write(253);
+        // ser.write(l_motor);
+        // ser.write(r_motor);
+        // ser.write(checksum);
 
-    // ROS_INFO("[Listener] I heard: [%s]\n", msg->data.c_str());
+        sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
+        ser.write(velMsg);
+
+        // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", linear_velocity, angular_velocity);
+        ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
+
+        // ROS_INFO("[Listener] I heard: [%s]\n", msg->data.c_str());
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////End function callback/////////////////////////////////////
@@ -242,13 +252,18 @@ int main(int argc, char **argv)
         ros::spinOnce();
         // encoders();
 
-    }
+        //  if(ser.available()){
+        //     ROS_INFO_STREAM("Reading from serial port");
+        //     std::string result;
+        //     result = ser.read(ser.available());
+        //     ROS_INFO_STREAM("Read: " << result);
+        // }   
 
     // Enter a loop, pumping callbacks
     //ros::spin();
 
-    loop_rate.sleep();
-
+        loop_rate.sleep();
+    }
     return 0;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
