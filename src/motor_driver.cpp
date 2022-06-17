@@ -187,19 +187,31 @@ void twistCallback(const geometry_msgs::Twist& msg)
 
         int r_motor = rightmotor;
         int l_motor = leftmotor;
-        int start_bit = 253;
 
-        int checksum = (253 - (leftmotor + rightmotor)) % 255;
-        ser.write(start_bit);
-        ser.write(l_motor);
-        ser.write(r_motor);
-        ser.write(checksum);
+        // const uint8_t r_motor = rightmotor;
+        // const uint8_t l_motor = leftmotor;
+        // const uint8_t start_bit = 253;
 
-        // sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
-        // ser.write(velMsg);
+        // const uint8_t checksum = (253 - (l_motor + r_motor)) % 255;
+
+        // size_t st = sizeof(start_bit);
+        // ser.write(&start_bit, st);
+
+        // size_t lm = sizeof(l_motor);
+        // ser.write(&l_motor, lm);
+
+        // size_t rm = sizeof(r_motor);
+        // ser.write(&r_motor, rm);
+
+        // size_t ch = sizeof(checksum);
+        // ser.write(&checksum, ch);
+
+        sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
+        ser.write(velMsg);
 
         // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", linear_velocity, angular_velocity);
-        //ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
+        ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
+        // ROS_INFO("checksum %d",checksum);
 
         // ROS_INFO("[Listener] I heard: [%s]\n", msg->data.c_str());
     }
@@ -253,12 +265,12 @@ int main(int argc, char **argv)
         ros::spinOnce();
         // encoders();
 
-        //  if(ser.available()){
-        //     ROS_INFO_STREAM("Reading from serial port");
-        //     std::string result;
-        //     result = ser.read(ser.available());
-        //     ROS_INFO_STREAM("Read: " << result);
-        // }   
+         if(ser.available()){
+            ROS_INFO_STREAM("Reading from serial port");
+            std::string result;
+            result = ser.read(ser.available());
+            ROS_INFO_STREAM("Read: " << result);
+        }   
 
     // Enter a loop, pumping callbacks
     //ros::spin();
