@@ -189,16 +189,16 @@ void twistCallback(const geometry_msgs::Twist& msg)
         int l_motor = leftmotor;
 
         // int checksum = (253 - (leftmotor + rightmotor)) % 255
-        // ser.write(253);
-        // ser.write(l_motor);
-        // ser.write(r_motor);
-        // ser.write(checksum);
+        ser.write(253);
+        ser.write(l_motor);
+        ser.write(r_motor);
+        ser.write(checksum);
 
-        sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
-        ser.write(velMsg);
+        // sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
+        // ser.write(velMsg);
 
         // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", linear_velocity, angular_velocity);
-        ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
+        //ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
 
         // ROS_INFO("[Listener] I heard: [%s]\n", msg->data.c_str());
     }
