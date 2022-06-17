@@ -177,7 +177,7 @@ void twistCallback(const geometry_msgs::Twist& msg)
     // linear_velocity = msg.linear.x;
     // angular_velocity = msg.angular.z;
 
-    if((abs(msg.linear.x) <= 1.5) & (abs(msg.angular.z) <= 0.4))
+    if((abs(msg.linear.x) <= 1) & (abs(msg.angular.z) <= 2))
     {
         rightmotor = msg.linear.x + (0.5 * msg.angular.z);
         leftmotor = msg.linear.x - (0.5 * msg.angular.z);
