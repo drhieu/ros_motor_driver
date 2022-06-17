@@ -265,12 +265,12 @@ int main(int argc, char **argv)
         ros::spinOnce();
         // encoders();
 
-         if(ser.available()){
-            ROS_INFO_STREAM("Reading from serial port");
-            std::string result;
-            result = ser.read(ser.available());
-            ROS_INFO_STREAM("Read: " << result);
-        }   
+        //  if(ser.available()){
+        //     ROS_INFO_STREAM("Reading from serial port");
+        //     std::string result;
+        //     result = ser.read(ser.available());
+        //     ROS_INFO_STREAM("Read: " << result);
+        // }   
 
     // Enter a loop, pumping callbacks
     //ros::spin();
