@@ -188,7 +188,7 @@ void twistCallback(const geometry_msgs::Twist& msg)
         int r_motor = rightmotor;
         int l_motor = leftmotor;
 
-        // int checksum = (253 - (leftmotor + rightmotor)) % 255
+        int checksum = (253 - (leftmotor + rightmotor)) % 255
         ser.write(253);
         ser.write(l_motor);
         ser.write(r_motor);
