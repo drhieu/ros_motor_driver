@@ -174,10 +174,7 @@ void twistCallback(const geometry_msgs::Twist& msg)
     char velMsg[256];
 
 
-    // linear_velocity = msg.linear.x;
-    // angular_velocity = msg.angular.z;
-
-    if((abs(msg.linear.x) <= 1) & (abs(msg.angular.z) <= 2))
+    if((abs(msg.linear.x) <= 1) && (abs(msg.angular.z) <= 2))
     {
         rightmotor = msg.linear.x + (0.5 * msg.angular.z);
         leftmotor = msg.linear.x - (0.5 * msg.angular.z);
@@ -185,8 +182,8 @@ void twistCallback(const geometry_msgs::Twist& msg)
         rightmotor = boost::algorithm::clamp(round(rightmotor*127 + 127), 0, 254);
         leftmotor = boost::algorithm::clamp(round(leftmotor*127 + 127), 0, 254);
 
-        int r_motor = rightmotor;
-        int l_motor = leftmotor;
+        // int r_motor = rightmotor;
+        // int l_motor = leftmotor;
 
         // const uint8_t r_motor = rightmotor;
         // const uint8_t l_motor = leftmotor;
@@ -194,26 +191,41 @@ void twistCallback(const geometry_msgs::Twist& msg)
 
         // const uint8_t checksum = (253 - (l_motor + r_motor)) % 255;
 
-        // size_t st = sizeof(start_bit);
-        // ser.write(&start_bit, st);
+        uint8_t r_motor = static_cast<uint8_t>(rightmotor);
+        uint8_t l_motor = static_cast<uint8_t>(leftmotor);
 
-        // size_t lm = sizeof(l_motor);
-        // ser.write(&l_motor, lm);
+        uint8_t start_byte = 253;
+        uint8_t mod_byte = 255;
 
+        uint8_t checksum = (((start_byte - (r_motor + l_motor)) % mod_byte) + mod_byte) % mod_byte;
+
+        // size_t st = sizeof(start_byte);
         // size_t rm = sizeof(r_motor);
-        // ser.write(&r_motor, rm);
-
+        // size_t lm = sizeof(l_motor);
         // size_t ch = sizeof(checksum);
-        // ser.write(&checksum, ch);
 
-        sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
+        // // ser.write(&start_byte, st);
+        // ser.write(std::to_string(start_byte));
+        // ser.write("@");
+
+        // // ser.write(&l_motor, lm);
+        // ser.write(std::to_string(l_motor));
+        // ser.write("#");
+
+        // // ser.write(&r_motor, rm);
+        // ser.write(std::to_string(r_motor));
+        // ser.write("&");
+
+        // // ser.write(&checksum, ch);
+        // ser.write(std::to_string(checksum));
+
+        // sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
+        sprintf(velMsg, "%d@%d#%d&%d\n", start_byte, l_motor, r_motor, checksum);
         ser.write(velMsg);
 
-        // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", linear_velocity, angular_velocity);
-        ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
+        ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", msg.linear.x, msg.angular.z);
+        // ROS_INFO("Start byte: %d   Right motor:%d    Left motor:%d  Checksum:%d", start_byte, r_motor, l_motor, checksum);
         // ROS_INFO("checksum %d",checksum);
-
-        // ROS_INFO("[Listener] I heard: [%s]\n", msg->data.c_str());
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
