@@ -15,6 +15,10 @@
 
     <node pkg="joy" type="joy_node" name="ps_controller_node" output="log">
         <param name="deadzone" value="0.05"/>
+        
+	<param name="autorepeat_rate" value="20" />
+
+	        
     </node>
     <node pkg="teleop_twist_joy" type="teleop_node" name="ps_controller_mapper_node" output="log">
         <param name="scale_linear" value="1"/>
@@ -32,6 +36,6 @@
     <!-- <node pkg="skippy_estop_status" type="skippy_estop_status_node" name="estop_status_node" respawn="true" output="log"></node> -->
 
     <!-- skippy Ros 1 Driver -->
-    <node pkg="ros_motor_driver" type="motor_driver_node" name="test" respawn="true" output="log"></node>
+    <node pkg="ros_motor_driver" type="motor_driver_node" name="test" respawn="true" output="screen"></node>
 
 </launch>
