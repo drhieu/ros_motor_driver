@@ -9,163 +9,36 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 #include "ros/ros.h"
 #include "geometry_msgs/Twist.h"
+#include "std_msgs/Bool.h"
 #include <serial/serial.h>
 #include <boost/algorithm/clamp.hpp>
 #include <math.h>
 #include <stdio.h>
 #include <iostream>
 #include <string>
+#include <sensor_msgs/Joy.h>
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////Global variables////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 serial::Serial ser;
-const uint8_t left_motor = 49;
-const uint8_t right_motor = 48;
-const uint8_t positive = 48;
-const uint8_t negative = 49;
+std::string estop_trigger_topic_;
+bool estop_state_ = false;
+uint8_t brake = 0;
 
-long long int left_encoder = 0;
-long long int right_encoder = 0;
-
-//////////////////////////////////////////////////////////////////////////////////////////////
-//////////Function impelmentations and declaration///////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////
-
-// // useful functions
-// void motor_direction_check()
-// {
-//         // Negative: 49   Positive: 48
-//     switch(result[1])
-//     {
-//         case: 49
-//                     ROS_INFO_STREAM("Neagtive direction");
-//                     decrement_encoder_values();
-//             break;
-            
-//                 case: 49
-//                     ROS_INFO_STREAM("Positive direction");
-//                     increment_encoder_values();
-//             break;
-//     }
-// }
-
-// void increment_encoder_values()
-// {
-//         // Left motor: 49    Right motor: 48
-//     switch(result[0])
-//     {
-//         case: 49
-//                 ROS_INFO_STREAM("Left motors");
-                    
-//                 std::string encoder_values = result.substr(2, msglength-3);
-//                 left_encoder += stoi(encoder_values);
-//                 // ROS_INFO_STREAM("Read: " << encoder_values);
-//                 ROS_INFO("%lld",right_encoder); 
-            
-//                 break;
-        
-//         case: 48
-//             ROS_INFO_STREAM("Right motors");
-            
-//             std::string encoder_values = result.substr(2, msglength-3);
-//             right_encoder += stoi(encoder_values);
-//             // ROS_INFO_STREAM("Read: " << encoder_values);
-//             ROS_INFO("%lld",right_encoder); 
-            
-//             break;        		
-//     }     	
-// }
-
-// void decrement_encoder_values()
-// {
-//         // Left motor: 49    Right motor: 48
-//     switch(result[0])
-//     {
-//         case: 49
-//                 ROS_INFO_STREAM("Left motors");
-                    
-//                 std::string encoder_values = result.substr(2, msglength-3);
-//                 left_encoder -= stoi(encoder_values);
-//                 // ROS_INFO_STREAM("Read: " << encoder_values);
-//                 ROS_INFO("%lld",right_encoder); 
-            
-//                 break;
-        
-//         case: 48
-//             ROS_INFO_STREAM("Right motors");
-            
-//             std::string encoder_values = result.substr(2, msglength-3);
-//             right_encoder -= stoi(encoder_values);
-//             // ROS_INFO_STREAM("Read: " << encoder_values);
-//             ROS_INFO("%lld",right_encoder); 
-            
-//             break;        		
-//     }        	
-// }
-        
+//Back Callback
+void break_cb(const sensor_msgs::Joy::ConstPtr& msg){
+        if (msg->buttons[6] > 0) 
+    {
+        // estop_state_ = true;
+        brake = 1;
+    } else if (msg->buttons[6] == 0){
+        brake = 0;
+    }
+}
 
 
-// //Encoder values
-// void encoders()
-// {
-//         // if(ser.available()){
-//         //     std::string result;
-//         //     result = ser.readline(ser.available());
-//         //     int msglength = result.length();
-//         //     //  ROS_INFO("%c",result[0]);
-
-//         //     // Check motoor direction
-//         //     if (result[0] == left_motor)
-//         //     {    
-//         //         ROS_INFO_STREAM("Left encoders");
-//         //         // Check motor positon
-//         //         if (result[1] == negative)
-//         //         {
-//         //             std::string encoder_values = result.substr(2, msglength-3);
-//         //             left_encoder -= stoi(encoder_values);
-//         //             // ROS_INFO_STREAM("Read: " << encoder_values);
-//         //             ROS_INFO("%lld",left_encoder);
-//         //         }
-//         //         else if (result[1] == positive)
-//         //         {
-//         //             std::string encoder_values = result.substr(2, msglength-3);
-//         //             left_encoder += stoi(encoder_values);
-//         //             // ROS_INFO_STREAM("Read: " << encoder_values);
-//         //             ROS_INFO("%lld",left_encoder);
-//         //         }
-//         //     }
-//         //     else if (result[0] == right_motor)
-//         //     {    
-//         //         ROS_INFO_STREAM("Right encoders");
-//         //         // Check motor positon
-//         //         if (result[1] == negative)
-//         //         {
-//         //             std::string encoder_values = result.substr(2, msglength-3);
-//         //             right_encoder -= stoi(encoder_values);
-//         //             // ROS_INFO_STREAM("Read: " << encoder_values);
-//         //             ROS_INFO("%lld",right_encoder);
-//         //         }
-//         //         else if (result[1] == positive)
-//         //         {
-//         //             std::string encoder_values = result.substr(2, msglength-3);
-//         //             right_encoder += stoi(encoder_values);
-//         //             // ROS_INFO_STREAM("Read: " << encoder_values);
-//         //             ROS_INFO("%lld",right_encoder);
-//         //         }
-//         //     }
-//         // }
-
-//         motor_direction_check();
-// }
-/////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////End function implementations and declarations/////////////////
-////////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////Function callback/////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////
-
+///////////////////////////////////////////////////////////////////////////////////////////
 // Topic messages callback
 void twistCallback(const geometry_msgs::Twist& msg)
 {
@@ -174,10 +47,7 @@ void twistCallback(const geometry_msgs::Twist& msg)
     char velMsg[256];
 
 
-    // linear_velocity = msg.linear.x;
-    // angular_velocity = msg.angular.z;
-
-    if((abs(msg.linear.x) <= 1) & (abs(msg.angular.z) <= 2))
+    if((abs(msg.linear.x) <= 1) && (abs(msg.angular.z) <= 2))
     {
         rightmotor = msg.linear.x + (0.5 * msg.angular.z);
         leftmotor = msg.linear.x - (0.5 * msg.angular.z);
@@ -185,35 +55,25 @@ void twistCallback(const geometry_msgs::Twist& msg)
         rightmotor = boost::algorithm::clamp(round(rightmotor*127 + 127), 0, 254);
         leftmotor = boost::algorithm::clamp(round(leftmotor*127 + 127), 0, 254);
 
-        int r_motor = rightmotor;
-        int l_motor = leftmotor;
 
-        // const uint8_t r_motor = rightmotor;
-        // const uint8_t l_motor = leftmotor;
-        // const uint8_t start_bit = 253;
+        uint8_t r_motor = static_cast<uint8_t>(rightmotor);
+        uint8_t l_motor = static_cast<uint8_t>(leftmotor);
 
-        // const uint8_t checksum = (253 - (l_motor + r_motor)) % 255;
+        uint8_t start_byte = 253;
+        uint8_t mod_byte = 255;
 
-        // size_t st = sizeof(start_bit);
-        // ser.write(&start_bit, st);
+        uint8_t checksum = (((start_byte - (r_motor + l_motor)) % mod_byte) + mod_byte) % mod_byte;
 
-        // size_t lm = sizeof(l_motor);
-        // ser.write(&l_motor, lm);
 
-        // size_t rm = sizeof(r_motor);
-        // ser.write(&r_motor, rm);
-
-        // size_t ch = sizeof(checksum);
-        // ser.write(&checksum, ch);
-
-        sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
+        
+        sprintf(velMsg, "%d@%d#%d&%d^%d\n", start_byte, l_motor, r_motor, brake, checksum);
         ser.write(velMsg);
 
-        // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", linear_velocity, angular_velocity);
-        ROS_INFO("Right motor %d    Left motor %d", r_motor, l_motor);
-        // ROS_INFO("checksum %d",checksum);
 
-        // ROS_INFO("[Listener] I heard: [%s]\n", msg->data.c_str());
+        // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", msg.linear.x, msg.angular.z);
+        // ROS_INFO("Start byte: %d   Right motor:%d    Left motor:%d  Brakes:%d Checksum:%d", start_byte, r_motor, l_motor, brake, checksum);
+
+        
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -236,9 +96,9 @@ int main(int argc, char **argv)
 
     // Subscribe to a given topic, in this case "chatter".
 	//chatterCallback: is the name of the callback function that will be executed each time a message is received.
-    ros::Subscriber cmdVel_sub = node.subscribe("/cmd_vel", 1000, twistCallback);
-
-
+    ros::Subscriber cmdVel_sub = node.subscribe("/skippy/cmd_vel", 1, twistCallback);
+    ros::Subscriber joy_sub = node.subscribe("joy", 1, break_cb);
+    ROS_INFO("STARTING MOTOR DRIVER");
     try
     {
         ser.setPort("/dev/ttyACM0");
@@ -249,12 +109,12 @@ int main(int argc, char **argv)
     }
     catch (serial::IOException& e)
     {
-        ROS_ERROR_STREAM("Unable to open port ");
+        ROS_ERROR("Unable to open port ");
         return -1;
     }
 
     if(ser.isOpen()){
-        ROS_INFO_STREAM("Serial Port initialized");
+        ROS_INFO("Serial Port initialized");
     }else{
         return -1;
     }
@@ -263,14 +123,13 @@ int main(int argc, char **argv)
     while(ros::ok()){
 
         ros::spinOnce();
-        // encoders();
 
-        //  if(ser.available()){
-        //     ROS_INFO_STREAM("Reading from serial port");
-        //     std::string result;
-        //     result = ser.read(ser.available());
-        //     ROS_INFO_STREAM("Read: " << result);
-        // }   
+         if(ser.available()){
+            // ROS_INFO_STREAM("Reading from serial port");
+            std::string result;
+            result = ser.read(ser.available());
+            ROS_INFO_STREAM("Reading: " << result);
+        }   
 
     // Enter a loop, pumping callbacks
     //ros::spin();
@@ -282,3 +141,4 @@ int main(int argc, char **argv)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////End main function//////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+

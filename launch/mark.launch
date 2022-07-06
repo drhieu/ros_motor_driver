@@ -1,0 +1,6 @@
+<launch>
+
+    <!-- skippy Ros 1 Driver -->
+    <node pkg="ros_motor_driver" type="motor_driver_node" name="bluemotor" respawn="true" output="screen"></node>
+
+</launch>
