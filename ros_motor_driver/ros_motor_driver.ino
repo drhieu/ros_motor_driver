@@ -26,28 +26,30 @@
 #define motor5_blue 37 //ML
 #define motor6_blue 25 //TL
 
+// State machine defines
+#define INIT_STATE    0x00
+#define UPDATE_STATE  0X01
+#define IDLE_STATE    0x02
+#define BRAKE_STATE   0x04
 
 // Global variables
 static unsigned int flag = 0;
 int right_motor;
 int left_motor;
-int pos = 0;
 int start_byte = 253;
 int mod_byte = 255;
-bool transmission_complete = false;
-
-const long updatePeriod = 1000L; //ms
-long lastUpdateTime = 0;
-int pulseCount1 = 0;
-long pulseCount2 = 0;
-
-//int left_motor;
-//int right_motor;
+int B = 0;
+int right_motor_speed;
+int left_motor_speed;
 
 
-//Dead zone
-const int deadzone = 20;
+// struct
+typedef struct robotmotion_s
+{
+    uint16_t robot_state;  
+}   robotmotion_t;
 
+static robotmotion_t state;
 
 void setup() {
     Serial.begin(115200);
@@ -86,6 +88,9 @@ void setup() {
     pinMode(motor4_yel, INPUT);
     pinMode(motor5_yel, INPUT);
     pinMode(motor6_yel, INPUT);
+
+    state.robot_state = INIT_STATE;
+    digitalWrite(led, HIGH);
 }
 
 
@@ -94,8 +99,6 @@ void movemotors(int left, int right) {
     //Serial.print(abs(left));
     //Serial.print(abs(right));
     
-  //left_motor = left;
-  //right_motor = right;
   
   if (left > 0) {
     digitalWrite(motor4_white, HIGH);
@@ -127,101 +130,83 @@ void movemotors(int left, int right) {
 //Function to update motor speed and direction
 void updatemotors() {
 
-
-
-  // 0 = rotating backward 127 = stop 254 = rotating forward
-  // converting to correct scale
-  // convert anything in between 0 to 127 into -254 to 0
-  // convert anything in between 127 to 254 into 0 to 254
-    int left_motor_speed = (left_motor - 127) * 2;
-    int right_motor_speed = (right_motor - 127) * 2;
-
-
-  
-//  int right_motor_speed = map(right_motor, 0, 255, -255, 255);
-//  Serial.print(right_motor_speed);
-//  int left_motor_speed = map(left_motor, 0, 255, -255, 255);
-//  Serial.print(left_motor_speed);
-
-  if (abs(right_motor_speed) <= deadzone) {
-    right_motor_speed = 0;
-  }
-  if (abs(left_motor_speed) <= deadzone) {
-    left_motor_speed = 0;
-  }
-  
-  
   if (right_motor_speed != 0 || left_motor_speed != 0) {
     digitalWrite(relaypin, HIGH);
     movemotors(left_motor_speed, right_motor_speed);
+
   } else {
     movemotors(0, 0);
     digitalWrite(relaypin, LOW);
   }
 }
 
+// State machine
+static void robot_motion_state()
+{
+    switch(state.robot_state)
+    {
+        case (UPDATE_STATE):
+          {
+            updatemotors();
+            state.robot_state = IDLE_STATE;
+          }  
+          break; /*end case (UPDATE_STATE)*/
+        case (IDLE_STATE):
+          {
+            right_motor_speed = (right_motor_speed >= 150) ? (right_motor_speed - 1): (right_motor_speed <= -150) ? (right_motor_speed + 1) : (right_motor_speed = 0);
+            left_motor_speed = (left_motor_speed >= 150) ? (left_motor_speed - 1): (left_motor_speed <= -150) ? (left_motor_speed + 1) : (left_motor_speed = 0);
+          
+            updatemotors();
+          
+            delay(10);           
+          }
+          break; /*end case (IDLE_STATE)*/
+        case (BRAKE_STATE):
+          {
+
+            right_motor_speed *= -1;// (right_motor_speed > 0) ? (right_motor_speed * -1) : (right_motor_speed < 0) ? (right_motor_speed) : 0; 
+            left_motor_speed *= -1;// (left_motor_speed > 0) ? (left_motor_speed  * -1) : (left_motor_speed < 0) ? (left_motor_speed) : 0; 
+
+            updatemotors();
+
+            delay(80);
+                  
+            do {
+
+                  //right_motor_speed *= -1;
+                 // left_motor_speed  *= -1;
+
+                  //updatemotors();
+
+                  right_motor_speed = (right_motor_speed >= 150) ? (right_motor_speed - 50): (right_motor_speed <= -150) ? (right_motor_speed + 50) : (right_motor_speed = 0);
+                  left_motor_speed = (left_motor_speed >= 150) ? (left_motor_speed - 50): (left_motor_speed <= -150) ? (left_motor_speed + 50) : (left_motor_speed = 0);
+
+                  updatemotors();
+                  delay(200);
+                  
+            } while ((B == 1));// && (right_motor_speed != 0 || left_motor_speed !=0));
+
+            
+            if (state.robot_state == BRAKE_STATE)
+            {
+              state.robot_state = IDLE_STATE;
+            }
+          }
+          break; /*end case (BRAKE_STATE)*/
+        case (INIT_STATE):
+        default:
+          break;
+    }
+}
+
 void loop() {
-  if(transmission_complete)
-  {
-    updatemotors();
-    transmission_complete = false;
-  }
-  digitalWrite(led, HIGH);
-  //updateRPM();
+
+  robot_motion_state();
 }
 
 
 
 //Serial event
-
-//void serialEvent()
-//{
-//  while (Serial.available())
-//  {
-//    static char left_motor_buffer[5];
-//    static char right_motor_buffer[5];
-//    static unsigned int index = 0;
-//    char inChar = Serial.read();
-//    switch(inChar)
-//    {
-//       case 'x':
-//       /*start of buffer*/
-//          //Serial.print(inChar);
-//          flag = 1;
-//          break;
-//       case 'y':
-//       /*End of buffer*/
-//              left_motor_buffer[index] = '\0';
-//              left_motor = atoi(left_motor_buffer);
-//              //Serial.print(left_motor);
-//              index = 0;
-//              flag = 0;
-//              transmission_complete = true;
-//          break;
-//       case 'z':
-//       /*Middle of buffer*/
-//              right_motor_buffer[index] = '\0';
-//              right_motor = atoi(right_motor_buffer);
-//              //Serial.print(right_motor);
-//              index = 0;
-//              flag = 2;
-//          break;
-//       default:
-//          if(flag == 1)
-//          {
-//            /* Linear speed setup*/
-//           right_motor_buffer[index++] = inChar;
-//          }
-//          else if(flag == 2)
-//          {
-//            /* Angular velocity setup*/
-//            left_motor_buffer[index++] = inChar;
-//          }
-//          break;
-//    }
-//  }
-//}
-
 void serialEvent() {
 
   String motor_speed = "";
@@ -229,6 +214,7 @@ void serialEvent() {
   String left;
   String right;
   String cheCk;  
+  String bRakes;
    
   while (Serial.available()) {
    
@@ -242,12 +228,16 @@ void serialEvent() {
         unsigned int a = motor_speed.indexOf('@');
         unsigned int b = motor_speed.indexOf('#');
         unsigned int c = motor_speed.indexOf('&');  
+        unsigned int d = motor_speed.indexOf('^');  
+
     
         staRt = motor_speed.substring(0, a);
         left = motor_speed.substring(a+1, b);
         right = motor_speed.substring(b+1, c);
-        cheCk = motor_speed.substring(c+1, StringLength);
-    
+        bRakes = motor_speed.substring(c+1, d);
+        cheCk = motor_speed.substring(d+1, StringLength);
+
+
 //        Serial.println(staRt);
 //        Serial.println(left);
 //        Serial.println(right);
@@ -256,18 +246,41 @@ void serialEvent() {
         int checksum = (((start_byte - (left.toInt() + right.toInt())) % mod_byte) + mod_byte) % mod_byte;
 //        Serial.println(checksum);
     
-        if (staRt.toInt() == start_byte && checksum == cheCk.toInt()) {
+        if (staRt.toInt() == start_byte && checksum == cheCk.toInt() && bRakes.toInt() == 0) {
           
-            transmission_complete = true;
+            state.robot_state = UPDATE_STATE;
+            
             left_motor = left.toInt();
             right_motor = right.toInt();
+            B = 0;
+
+            // 0 = rotating backward 127 = stop 254 = rotating forward
+            // converting to correct scale
+            // convert anything in between 0 to 127 into -254 to 0
+            // convert anything in between 127 to 254 into 0 to 254 
+             
+            left_motor_speed  = (!(left_motor == 127) * (52.0 / 63.0) * left_motor) + ((left_motor < 127) * -254) + ((left_motor > 127) * (2794.0 / 63.0));
+            right_motor_speed = (!(right_motor == 127) * (52.0 / 63.0) * right_motor) + ((right_motor < 127) * -254) + ((right_motor > 127) * (2794.0 / 63.0));
+            
             motor_speed = "";
     
 //            Serial.println(left_motor);
 //            Serial.println(right_motor);
     
         } 
-        else 
+        else if (bRakes.toInt() == 1)
+        {
+          if (left_motor_speed != 0 || right_motor_speed !=0)
+          {
+            state.robot_state = BRAKE_STATE;
+            B = bRakes.toInt();
+          }
+          else
+          {
+            state.robot_state = INIT_STATE;
+          }
+        }
+        else
         {
             motor_speed = "";
         }
@@ -278,53 +291,3 @@ void serialEvent() {
     }
   }
 }
-
-//void pin_interrupts(){
-//    attachInterrupt(digitalPinToInterrupt(motor2_yel),Update_encR1,RISING);
-//    attachInterrupt(digitalPinToInterrupt(motor5_yel),Update_encR2,RISING);
-//}
-//
-//void Update_encR1(){
-//     pulseCount1++;
-//}
-//void Update_encR2(){
-//     pulseCount2++;
-//}
-//
-//void updateRPM()
-//{
-//   char msg1[256];
-//   char msg2[256];
-//   uint8_t dirL;  // Positive: 0    Negative: 1
-//   uint8_t dirR;  // Positive: 0    Negative: 1
-//   const uint8_t motor_positionL = 1;    // Right: 0  Left: 1
-//   const uint8_t motor_positionR = 0;    // Right: 0  Left: 1
-//   int l_motor = 1;
-//   int r_motor = 1;
-//
-//
-//   // Left encoder setup
-//   if (l_motor > 0)
-//     dirL = 0;
-//   else
-//     dirL = 1;
-//     
-//   pulseCount2 = 3000;
-//   
-//
-//   //Right encoder setup
-//   if (r_motor > 0)
-//     dirR = 0;
-//   else
-//     dirR = 1;
-//     
-//   pulseCount1 = 6000;
-//
-//   sprintf(msg1, "%u%u%d\n", motor_positionL, dirL, pulseCount2); 
-//   sprintf(msg2, "%u%u%d\n", motor_positionR, dirR, pulseCount1); 
-//   Serial.print(msg1);
-//   Serial.print(msg2);
-//
-//   pulseCount1 = 0;
-//   pulseCount2 = 0;
-//}
