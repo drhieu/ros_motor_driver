@@ -1,266 +1,133 @@
-// /*
-//  * Author: Modou Dibba
-//  * Year: 2022
-//  *
-//  */
-
-// #include "motor_driver.hpp"
-
-// namespace SkippyRobot {
-
-//     RobotDriver::RobotDriver(ros::NodeHandle *nh){}
-//     RobotDriver::~RobotDriver() {}
-
-//     int main(int argc, char **argv){}
-
-// } // namespace SkippyRobot
-
-
-
-// // Topic messages callback
-// void twistCallback(const geometry_msgs::Twist& msg)
-// {
-//     double leftmotor;
-//     double rightmotor;
-//     char velMsg[256];
-
-
-//     if((abs(msg.linear.x) <= 1) && (abs(msg.angular.z) <= 2))
-//     {
-//         rightmotor = msg.linear.x + (0.5 * msg.angular.z);
-//         leftmotor = msg.linear.x - (0.5 * msg.angular.z);
-
-//         rightmotor = boost::algorithm::clamp(round(rightmotor*127 + 127), 0, 254);
-//         leftmotor = boost::algorithm::clamp(round(leftmotor*127 + 127), 0, 254);
-
-
-//         uint8_t r_motor = static_cast<uint8_t>(rightmotor);
-//         uint8_t l_motor = static_cast<uint8_t>(leftmotor);
-
-//         uint8_t start_byte = 253;
-//         uint8_t mod_byte = 255;
-
-//         uint8_t checksum = (((start_byte - (r_motor + l_motor)) % mod_byte) + mod_byte) % mod_byte;
-
-
-
-//         // sprintf(velMsg, "jx%dz%dy", r_motor, l_motor);
-//         sprintf(velMsg, "%d@%d#%d&%d\n", start_byte, l_motor, r_motor, checksum);
-//         ser.write(velMsg);
-
-//         ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", msg.linear.x, msg.angular.z);
-//         // ROS_INFO("Start byte: %d   Right motor:%d    Left motor:%d  Checksum:%d", start_byte, r_motor, l_motor, checksum);
-//         // ROS_INFO("checksum %d",checksum);
-//     }
-// }
-// ////////////////////////////////////////////////////////////////////////////////////////////////
-// //////////////////////////////////////////End function callback/////////////////////////////////////
-// ///////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////Begin main function//////////////////////////////////////
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-// int main(int argc, char **argv)
-// {
-//     // Initiate a new ROS node named "listener"
-// 	ros::init(argc, argv, "motor_driver_node");
-// 	//create a node handle: it is reference assigned to a new node
-// 	ros::NodeHandle node;
-
-
-//     // Subscribe to a given topic, in this case "chatter".
-// 	//chatterCallback: is the name of the callback function that will be executed each time a message is received.
-//     ros::Subscriber cmdVel_sub = node.subscribe("/cmd_vel", 1000, twistCallback);
-
-
-//     try
-//     {
-//         ser.setPort("/dev/ttyACM0");
-//         ser.setBaudrate(115200);
-//         serial::Timeout to = serial::Timeout::simpleTimeout(1000);
-//         ser.setTimeout(to);
-//         ser.open();
-//     }
-//     catch (serial::IOException& e)
-//     {
-//         ROS_ERROR_STREAM("Unable to open port ");
-//         return -1;
-//     }
-
-//     if(ser.isOpen()){
-//         ROS_INFO_STREAM("Serial Port initialized");
-//     }else{
-//         return -1;
-//     }
-
-//     ros::Rate loop_rate(5);
-//     while(ros::ok()){
-
-//         ros::spinOnce();
-//         // encoders();
-
-//          if(ser.available()){
-//             ROS_INFO_STREAM("Reading from serial port");
-//             std::string result;
-//             result = ser.read(ser.available());
-//             ROS_INFO_STREAM("Read: " << result);
-//         }   
-
-//     // Enter a loop, pumping callbacks
-//     //ros::spin();
-
-//         loop_rate.sleep();
-//     }
-//     return 0;
-// }
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-// ///////////////////////////////////////////End main function//////////////////////////////////////
-// /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/*
- * Author: Modou Dibba
- * Year: 2022
- *
- */
-
-/////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////Program includes///////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////
-#include "ros/ros.h"
-#include "geometry_msgs/Twist.h"
-#include "std_msgs/Bool.h"
-#include <serial/serial.h>
-#include <boost/algorithm/clamp.hpp>
 #include <math.h>
-#include <stdio.h>
-#include <iostream>
-#include <string>
 #include <sensor_msgs/Joy.h>
+#include <serial/serial.h>
+#include <stdio.h>
 
-///////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////Global variables////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////
-serial::Serial ser;
-std::string estop_trigger_topic_;
-bool estop_state_ = false;
-uint8_t brake = 0;
+#include <boost/algorithm/clamp.hpp>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
 
-//Back Callback
-void break_cb(const sensor_msgs::Joy::ConstPtr& msg){
-        if (msg->buttons[6] > 0) 
-    {
-        // estop_state_ = true;
-        brake = 1;
-    } else if (msg->buttons[6] == 0){
-        brake = 0;
-    }
-}
+#include "geometry_msgs/Twist.h"
+#include "ros/ros.h"
+#include "std_msgs/Bool.h"
 
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// Topic messages callback
-void twistCallback(const geometry_msgs::Twist& msg)
-{
+class Motor_Driver {
+   public:
+    Motor_Driver();
+   private:
+    void incomingTwistCallback(const geometry_msgs::Twist::ConstPtr& vrtwist);  // For VR teleop
+    void callbackBrake(const std_msgs::Bool::ConstPtr& updatebool);
+    ros::NodeHandle nh_;
+    std::mutex twist_update_mutex_;
+    serial::Serial ser;
+    std::string estop_trigger_topic_;
+    bool hardbrakeonce = false;
+    bool right_cw = true;
+    bool left_cw = true;
+    uint8_t brake = 0;
     double leftmotor;
     double rightmotor;
-    char velMsg[256];
 
+    int safetyflats_;
+    int linear_, angular_;
+    double l_scale_, a_scale_;
+    std::atomic<bool> brake_state_;
+    ros::Subscriber twist_sub_;
+    std::thread motor_speed_update_thread_;
+    void motors_control_loop(int time);
+};
 
-    if((abs(msg.linear.x) <= 1) && (abs(msg.angular.z) <= 2))
-    {
-        rightmotor = msg.linear.x + (0.5 * msg.angular.z);
-        leftmotor = msg.linear.x - (0.5 * msg.angular.z);
-
-        rightmotor = boost::algorithm::clamp(round(rightmotor*127 + 127), 0, 254);
-        leftmotor = boost::algorithm::clamp(round(leftmotor*127 + 127), 0, 254);
-
-
-        uint8_t r_motor = static_cast<uint8_t>(rightmotor);
-        uint8_t l_motor = static_cast<uint8_t>(leftmotor);
-
-        uint8_t start_byte = 253;
-        uint8_t mod_byte = 255;
-
-        uint8_t checksum = (((start_byte - (r_motor + l_motor)) % mod_byte) + mod_byte) % mod_byte;
-
-
-        
-        sprintf(velMsg, "%d@%d#%d&%d^%d\n", start_byte, l_motor, r_motor, brake, checksum);
-        ser.write(velMsg);
-
-
-        // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", msg.linear.x, msg.angular.z);
-        // ROS_INFO("Start byte: %d   Right motor:%d    Left motor:%d  Brakes:%d Checksum:%d", start_byte, r_motor, l_motor, brake, checksum);
-
-        
-    }
-}
-////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////End function callback/////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////Begin main function//////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-int main(int argc, char **argv)
-{
-    // Initiate a new ROS node named "listener"
-	ros::init(argc, argv, "motor_driver_node");
-	//create a node handle: it is reference assigned to a new node
-	ros::NodeHandle node;
-
-
-    // Subscribe to a given topic, in this case "chatter".
-	//chatterCallback: is the name of the callback function that will be executed each time a message is received.
-    ros::Subscriber cmdVel_sub = node.subscribe("/skippy/cmd_vel", 1, twistCallback);
-    ros::Subscriber joy_sub = node.subscribe("joy", 1, break_cb);
-    ROS_INFO("STARTING MOTOR DRIVER");
-    try
-    {
+Motor_Driver::Motor_Driver() {
+    twist_sub_ = nh_.subscribe<geometry_msgs::Twist>("/skippy/cmd_vel", 1, &Motor_Driver::incomingTwistCallback, this);
+    brake_state_ = true;
+    motor_speed_update_thread_ = std::thread([this]() { this->motors_control_loop(60); });
+    try {
         ser.setPort("/dev/ttyACM0");
         ser.setBaudrate(115200);
         serial::Timeout to = serial::Timeout::simpleTimeout(1000);
         ser.setTimeout(to);
         ser.open();
-    }
-    catch (serial::IOException& e)
-    {
+    } catch (serial::IOException& e) {
         ROS_ERROR("Unable to open port ");
-        return -1;
+        throw -1;
     }
 
-    if(ser.isOpen()){
+    if (ser.isOpen()) {
         ROS_INFO("Serial Port initialized");
-    }else{
-        return -1;
+    } else {
+        throw -1;
     }
-
-    ros::Rate loop_rate(5);
-    while(ros::ok()){
-
-        ros::spinOnce();
-
-         if(ser.available()){
-            // ROS_INFO_STREAM("Reading from serial port");
-            std::string result;
-            result = ser.read(ser.available());
-            ROS_INFO_STREAM("Reading: " << result);
-        }   
-
-    // Enter a loop, pumping callbacks
-    //ros::spin();
-
-        loop_rate.sleep();
-    }
-    return 0;
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////End main function//////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void Motor_Driver::motors_control_loop(int sleeptime) {
+    while (true) {
+        twist_update_mutex_.lock();
+        uint8_t start_byte = 253;
+        uint8_t mod_byte = 255;
+        uint8_t r_motor = static_cast<uint8_t>(rightmotor);
+        uint8_t l_motor = static_cast<uint8_t>(leftmotor);
+        char velMsg[256];
+
+        while (true) {
+            uint8_t checksum = (((start_byte - (r_motor + l_motor)) % mod_byte) + mod_byte) % mod_byte;
+            if (hardbrakeonce && brake == 1){
+                if (right_cw)
+                    r_motor = 253;
+                else
+                    r_motor = 0;
+                if (left_cw)
+                    l_motor = 253;
+                else
+                    l_motor = 0;
+            }
+            sprintf(velMsg, "%d@%d#%d&%d^%d\n", start_byte, l_motor, r_motor, brake, checksum);
+            ser.write(velMsg);
+
+            // ROS_INFO("Linear velocity %3.2f    Angualar velocity %3.2f", msg.linear.x, msg.angular.z);
+            // ROS_INFO("Start byte: %d   Right motor:%d    Left motor:%d  Brakes:%d Checksum:%d", start_byte, r_motor, l_motor, brake, checksum);
+        }
+
+        twist_update_mutex_.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleeptime));
+    }
+}
+
+void Motor_Driver::callbackBrake(const std_msgs::Bool::ConstPtr& msg) {
+    if (msg->data == true)
+        brake = 1;
+    else
+        brake = 0;
+}
+
+void Motor_Driver::incomingTwistCallback(const geometry_msgs::Twist::ConstPtr& msg) {
+    twist_update_mutex_.lock();
+    if ((abs(msg->linear.x) <= 1) && (abs(msg->angular.z) <= 2)) {
+        rightmotor = msg->linear.x + (0.5 * msg->angular.z);
+        leftmotor = msg->linear.x - (0.5 * msg->angular.z);
+
+        rightmotor = boost::algorithm::clamp(round(rightmotor * 127 + 127), 0, 254);
+        leftmotor = boost::algorithm::clamp(round(leftmotor * 127 + 127), 0, 254);
+    }
+    if (rightmotor > 127){
+        right_cw = true;
+    }else if (rightmotor < 127){
+        right_cw = false;
+
+    }
+    if (leftmotor > 127){
+        left_cw = true;
+    }else if (leftmotor < 127){
+        left_cw = false;
+
+    }
+    twist_update_mutex_.unlock();
+}
+
+int main(int argc, char** argv) {
+    ros::init(argc, argv, "Skippy Control Processor");
+    Motor_Driver skippy;
+
+    ros::spin();
+}
